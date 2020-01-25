@@ -3,17 +3,18 @@ from os.path import join, exists, isdir
 from time import time
 
 import numpy as np
-
-from sklearn.cross_validation import KFold
-from sklearn.grid_search import GridSearchCV
+from sklearn.model_selection import KFold
+#from sklearn.cross_validation import KFold
+from sklearn.model_selection import GridSearchCV
+#from sklearn.grid_search import GridSearchCV
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
-
 import matplotlib.pyplot as pl
-from scipy.misc import imread
+import cv2 as cv
+#from scipy.misc import imread
 from PIL import Image, ImageOps
 from bunch import Bunch
 
@@ -82,9 +83,11 @@ def get_pokemon(h=200, w=200):
     # read data
     pokemons = np.zeros((n_pokemon, h, w), dtype=np.float32)
     for i, pokemon_path in enumerate(pokemon_paths):
-            img = imread(pokemon_path)
+            img = cv.imread(pokemon_path)
             pokemon = np.asarray(img, dtype=np.uint32)
-            pokemons[i, ...] = pokemon
+            for j in range(3):
+                pokemons[i, ...] = pokemon[..., j]
+
 
     # shuffle pokemon
     indices = np.arange(n_pokemon)
@@ -106,10 +109,10 @@ def main():
     y = pokemon.target
     n_classes = pokemon.target_names.shape[0]
 
-    kf = KFold(len(y), n_folds=4, shuffle=True)
+    kf = KFold(n_splits=4, shuffle=True)
     scores = 0.0
     t0 = time()
-    for train_index, test_index in kf:
+    for train_index, test_index in kf.split(X):
         X_train = np.array([X[i] for i in train_index])
         X_test = np.array([X[i] for i in test_index])
         y_train = np.array([y[i] for i in train_index])
@@ -121,7 +124,7 @@ def main():
         pca = PCA(n_components=n_components, whiten=True).fit(X_train)
         eigenpokemons = pca.components_.reshape((n_components, h, w))
 
-        print "Projecting the input data on the eigenpokemon orthonormal basis"
+        print("Projecting the input data on the eigenpokemon orthonormal basis")
         X_train_pca = pca.transform(X_train)
         X_test_pca = pca.transform(X_test)
 
@@ -131,7 +134,7 @@ def main():
 
         ###############################################################################
         # Train an SVM classification model
-        print "Fitting the classifier to the training set"
+        print("Fitting the classifier to the training set")
         param_grid = {
                 'kernel': ['rbf', 'linear'],
                 'C': [1e3, 5e3, 1e4, 5e4, 1e5],
@@ -149,11 +152,11 @@ def main():
 
         ###############################################################################
         # Quantitative evaluation of the model quality on the test set
-        print "Predicting pokemon names on the testing set"
+        print("Predicting pokemon names on the testing set")
         y_pred = clf.predict(X_test_pca)
 
-        print classification_report(y_test, y_pred, target_names=pokemon.target_names)
-        print confusion_matrix(y_test, y_pred, labels=range(n_classes))
+        print(classification_report(y_test, y_pred, target_names=pokemon.target_names))
+        print(confusion_matrix(y_test, y_pred, labels=range(n_classes)))
         scores += clf.score(X_test_pca, y_test)
 
         ###############################################################################
@@ -166,8 +169,8 @@ def main():
         plot_gallery(eigenpokemons, eigenpokemons_titles, h, w)
         pl.show()
 
-    print "Computed in %0.3fs" % (time() - t0)
-    print 'AVG score = %0.3f' % (scores/len(kf))
+    print("Computed in %0.3fs" % (time() - t0))
+    print('AVG score = %0.3f' % (scores))
 
 if __name__ == "__main__":
     main()
